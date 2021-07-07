@@ -21,7 +21,10 @@ import racecar_utils as rc_utils
 ########################################################################################
 
 rc = racecar_core.create_racecar()
-
+velo = 0
+angle = 0
+counter = 0
+mode = "User"
 # Put any global variables here
 
 ########################################################################################
@@ -48,6 +51,7 @@ def start():
         "    A button = drive in a circle\n"
         "    B button = drive in a square\n"
         "    X button = drive in a figure eight\n"
+        "    Y button = drive in a triangle\n"
     )
 
 
@@ -56,19 +60,83 @@ def update():
     After start() is run, this function is run every frame until the back button
     is pressed
     """
-    # TODO (warmup): Implement acceleration and steering
-    rc.drive.set_speed_angle(0, 0)
+    global counter
+    global velo
+    global angle
+    global circling
+    global mode
+
+    TriggerLeft = rc.controller.Trigger.LEFT
+    TriggerRight = rc.controller.Trigger.RIGHT
+    
+    velo = rc.controller.get_trigger(TriggerLeft)-rc.controller.get_trigger(TriggerRight)
+    
+    angle = rc.controller.get_joystick(rc.controller.Joystick.LEFT)[0]
+
+    # print(f"{velo} and {angle}")
+
+    rc.drive.set_speed_angle(velo, angle)    
 
     if rc.controller.was_pressed(rc.controller.Button.A):
+        mode = "Circle"
         print("Driving in a circle...")
-        # TODO (main challenge): Drive in a circle
+    if rc.controller.was_pressed(rc.controller.Button.B):
+        mode = "Square"
+        counter = 0
+        print("Driving in a square")
+    if rc.controller.was_pressed(rc.controller.Button.X):
+        mode = "Figure8"
+        counter = 0
+        print("Driving in a figure 8")
+    if rc.controller.was_pressed(rc.controller.Button.Y):
+        mode = "DrawS"
+        counter = 0
+        print("Driving in a S")
 
-    # TODO (main challenge): Drive in a square when the B button is pressed
+    # Drives in a circle
+    if(mode == "Circle"):
+        rc.drive.set_speed_angle(1,0.5)
+    
+    # Drives in a square
+    if(mode == "Square"):
+        # in seconds
+        per = 6
+        angle = 0
+        turn_angle = 1
+        velo = 0.75
+        if(counter % per < 5.25):
+            velo = 1
+            angle = turn_angle
+        if(counter % per <= 4):
+            angle = 0
+        rc.drive.set_speed_angle(velo,angle)
+        counter+=rc.get_delta_time()
+    
+    #Drives in a figure 8 shape
+    if(mode == "Figure8"):
+        per = 10
+        turn_angle = 1
+        velo = 1
+        if(counter % per < 5.5):
+            turn_angle*=-1
+        print(counter % 10)
 
-    # TODO (main challenge): Drive in a figure eight when the X button is pressed
+        rc.drive.set_speed_angle(velo,turn_angle)
+        counter+=rc.get_delta_time()
 
-    # TODO (main challenge): Drive in a shape of your choice when the Y button
-    # is pressed
+    if(mode == "DrawS"):
+        per = 3.75
+        turn_angle = 1
+        velo = 1
+        if(counter % per <= 2):
+            turn_angle*=-1
+        
+        rc.drive.set_speed_angle(velo,turn_angle)
+        counter+=rc.get_delta_time()
+
+    # if rc.controller.was_pressed(rc.controller.Button.Y):
+    #     mode = "User"
+
 
 
 ########################################################################################
