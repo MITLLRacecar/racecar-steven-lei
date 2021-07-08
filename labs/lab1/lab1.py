@@ -51,7 +51,7 @@ def start():
         "    A button = drive in a circle\n"
         "    B button = drive in a square\n"
         "    X button = drive in a figure eight\n"
-        "    Y button = drive in a triangle\n"
+        "    Y button = drive in a S shape\n"
     )
 
 
