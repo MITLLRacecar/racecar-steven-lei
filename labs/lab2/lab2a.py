@@ -26,14 +26,20 @@ rc = racecar_core.create_racecar()
 
 # >> Constants
 # The smallest contour we will recognize as a valid contour
-MIN_CONTOUR_AREA = 30
+MIN_CONTOUR_AREA = 150
 
 # A crop window for the floor directly in front of the car
 CROP_FLOOR = ((360, 0), (rc.camera.get_height(), rc.camera.get_width()))
 
 # Colors, stored as a pair (hsv_min, hsv_max)
-BLUE = ((90, 50, 50), (120, 255, 255))  # The HSV range for the color blue
 # TODO (challenge 1): add HSV ranges for other colors
+BLUE = ((90, 50, 50), (120, 255, 255))  # The HSV range for the color blue
+
+RED  = ((0,50,50),(20,255,255))
+
+GREEN = ((40, 50, 50), (85, 255, 255))
+
+#are you in? yeah i think we're in different rooms im in the lobby rn
 
 # >> Variables
 speed = 0.0  # The current speed of the car
@@ -67,8 +73,55 @@ def update_contour():
         image = rc_utils.crop(image, CROP_FLOOR[0], CROP_FLOOR[1])
 
         # Find all of the blue contours
-        contours = rc_utils.find_contours(image, BLUE[0], BLUE[1])
+        red_contours = rc_utils.find_contours(image, RED[0], RED[1])
+        blue_contours = rc_utils.find_contours(image, BLUE[0], BLUE[1])
+        green_contours = rc_utils.find_contours(image, GREEN[0], GREEN[1])
 
+        red_max = 0
+        for red_contour in red_contours:
+            if cv.contourArea(red_contour) > red_max:
+                red_max = cv.contourArea(red_contour)
+                
+        green_max = 0
+        for green_contour in green_contours:
+            if cv.contourArea(green_contour) > green_max:
+                green_max = cv.contourArea(green_contour)
+                
+        blue_max = 0
+        for blue_contour in blue_contours:
+            if cv.contourArea(blue_contour) > blue_max:
+                blue_max = cv.contourArea(blue_contour)
+        
+        
+        priority_mode = 0
+
+        if rc.controller.was_pressed(rc.controller.Button.A):
+            priority_mode = 1
+        if rc.controller.was_pressed(rc.controller.Button.B):
+            priority_mode = 2
+        if rc.controller.was_pressed(rc.controller.Button.X):
+            priority_mode = 3
+        
+        
+        prio = []
+        # 1 - red>green>blue
+        # 2 -  red > blue > green
+        # 3 -  green > red > blue
+        if priority_mode == 1:
+            prio = [[red_contours,red_max],[green_contours,green_max],[blue_contours,blue_max]]
+        if priority_mode ==2:
+            prio = [[red_contours,red_max],[blue_contours,blue_max],[green_contours,green_max]]
+        if priority_mode ==3:
+            prio = [[green_contours,green_max],[red_contours,red_max],[blue_contours,blue_max]]
+        print(prio)
+
+        if len(prio[0][0]) > 0 and prio[0][1] > MIN_CONTOUR_AREA:
+            contours = prio[0][0]
+        elif len(prio[1][0]) > 0 and prio[1][1] > MIN_CONTOUR_AREA:
+            contours = prio[1][0]
+        else:
+            contours = prio[2][0]
+                
         # Select the largest contour
         contour = rc_utils.get_largest_contour(contours, MIN_CONTOUR_AREA)
 
@@ -116,9 +169,18 @@ def start():
         "    A button = print current speed and angle\n"
         "    B button = print contour center and area"
     )
-
+def remap(val,old_min,old_max,new_min,new_max):
+    len1 = abs(old_max - old_min)
+    len2 = abs(new_max - new_min)
+    scale = val/len1
+    scale_shift = scale*len2
+    if new_max > new_min:
+        return new_min + scale_shift
+    else:
+        return new_min - scale_shift
 
 def update():
+
     """
     After start() is run, this function is run every frame until the back button
     is pressed
@@ -133,11 +195,10 @@ def update():
     # If we could not find a contour, keep the previous angle
     if contour_center is not None:
         # Current implementation: bang-bang control (very choppy)
-        # TODO (warmup): Implement a smoother way to follow the line
-        if contour_center[1] < rc.camera.get_width() / 2:
-            angle = -1
-        else:
-            angle = 1
+        # TODO (warmup): Implement a smoother way to follow the line 
+        # done
+        angle = remap(contour_center[1], 0, rc.camera.get_width(), -1, 1)
+        
 
     # Use the triggers to control the car's speed
     forwardSpeed = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
