@@ -11,6 +11,7 @@ Lab 2B - Color Image Cone Parking
 ########################################################################################
 
 import sys
+from typing import Counter
 import cv2 as cv
 import numpy as np
 
@@ -18,12 +19,23 @@ sys.path.insert(1, "../../library")
 import racecar_core
 import racecar_utils as rc_utils
 
+from enum import IntEnum
+
+class State(IntEnum):
+    search = 0
+    obstacle = 1
+    approach = 2
+    stop = 3
+
 ########################################################################################
 # Global variables
 ########################################################################################
 
 rc = racecar_core.create_racecar()
 
+curr_state: State = State.search
+
+counter = 0
 # >> Constants
 # The smallest contour we will recognize as a valid contour
 MIN_CONTOUR_AREA = 30
@@ -31,6 +43,8 @@ MIN_CONTOUR_AREA = 30
 # The HSV range for the color orange, stored as (hsv_min, hsv_max)
 ORANGE = ((10, 100, 100), (20, 255, 255))
 
+MIN_AREA_THRESHOLD = 27500
+MAX_AREA_THRESHOLD = 28000
 # >> Variables
 speed = 0.0  # The current speed of the car
 angle = 0.0  # The current angle of the car's wheels
@@ -86,6 +100,9 @@ def start():
     global speed
     global angle
 
+    global curr_state
+    curr_state = State.search
+
     # Initialize variables
     speed = 0
     angle = 0
@@ -107,15 +124,46 @@ def update():
     """
     global speed
     global angle
-
+    global counter
+    global curr_state
     # Search for contours in the current color image
     update_contour()
 
     # TODO: Park the car 30 cm away from the closest orange cone
+    
+    # move randomly
+    if curr_state == State.search:
+        angle = 1
+        speed = 0.5
+        if counter % 10 < 5.5:
+            angle = -1
 
+        counter += rc.get_delta_time()
+        
+        if contour_area > MIN_CONTOUR_AREA:
+            curr_state = State.approach
+
+    if curr_state == State.approach:
+
+        if contour_area < MIN_CONTOUR_AREA:
+            curr_state = State.search
+        
+        elif contour_center[0] > 388:
+            curr_state = State.stop
+    #30 cm : 388 px ht
+        else:
+            angle = remap(contour_center[1], 0, rc.camera.get_width(), -1, 1)
+            speed = speed_remap(contour_center[0], 0, 388, 1, 0)
+            # speed = 0.5
+        
+    if curr_state == State.stop:
+        speed = 0
+
+    rc.drive.set_speed_angle(speed, angle)
+    
     # Print the current speed and angle when the A button is held down
     if rc.controller.is_down(rc.controller.Button.A):
-        print("Speed:", speed, "Angle:", angle)
+        print("State:", curr_state, "Speed:", speed, "Angle:", angle)
 
     # Print the center and area of the largest contour when B is held down
     if rc.controller.is_down(rc.controller.Button.B):
@@ -123,7 +171,43 @@ def update():
             print("No contour found")
         else:
             print("Center:", contour_center, "Area:", contour_area)
+            
 
+def remap(val,old_min,old_max,new_min,new_max):
+
+    len1 = abs(old_max - old_min)
+    len2 = abs(new_max - new_min)
+    scale = val/len1
+    scale_shift = scale*len2
+    if new_max > new_min:
+        val = new_min + scale_shift
+    else:
+        val = new_min - scale_shift
+
+    if val > new_max:
+        val = new_max
+    elif val < new_min:
+        val = new_min
+    return val
+
+def speed_remap(val,old_min,old_max,new_min,new_max):
+    dist_old = abs(old_min-old_max)
+    dist_new = abs(new_max-new_min)
+    
+    scale = dist_new/dist_old
+    
+    val = abs(val - old_min) * scale
+
+    if (new_min > new_max):
+        val = new_min - val
+    else:
+        val = new_min + val
+        
+    # if val >= new_max:
+    #     val = new_max
+    # elif val <= new_min:
+    #     val = new_min
+    return val
 
 def update_slow():
     """
