@@ -135,7 +135,7 @@ def update():
     if curr_state == State.search:
         angle = 1
         speed = 0.5
-        if counter % 10 < 5.5:
+        if counter % 10 < 8:
             angle = -1
 
         counter += rc.get_delta_time()
