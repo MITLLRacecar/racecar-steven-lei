@@ -21,7 +21,7 @@ import racecar_utils as rc_utils
 ########################################################################################
 # Global variables
 ########################################################################################
-
+priority_mode = 0
 rc = racecar_core.create_racecar()
 
 # >> Constants
@@ -38,8 +38,6 @@ BLUE = ((90, 50, 50), (120, 255, 255))  # The HSV range for the color blue
 RED  = ((0,50,50),(20,255,255))
 
 GREEN = ((40, 50, 50), (85, 255, 255))
-
-#are you in? yeah i think we're in different rooms im in the lobby rn
 
 # >> Variables
 speed = 0.0  # The current speed of the car
@@ -59,7 +57,7 @@ def update_contour():
     """
     global contour_center
     global contour_area
-
+    global priority_mode
     image = rc.camera.get_color_image()
 
     if image is None:
@@ -72,58 +70,33 @@ def update_contour():
         # Crop the image to the floor directly in front of the car
         image = rc_utils.crop(image, CROP_FLOOR[0], CROP_FLOOR[1])
 
-        # Find all of the blue contours
+        # Find all of the color contours
         red_contours = rc_utils.find_contours(image, RED[0], RED[1])
         blue_contours = rc_utils.find_contours(image, BLUE[0], BLUE[1])
         green_contours = rc_utils.find_contours(image, GREEN[0], GREEN[1])
-
-        red_max = 0
-        for red_contour in red_contours:
-            if cv.contourArea(red_contour) > red_max:
-                red_max = cv.contourArea(red_contour)
-                
-        green_max = 0
-        for green_contour in green_contours:
-            if cv.contourArea(green_contour) > green_max:
-                green_max = cv.contourArea(green_contour)
-                
-        blue_max = 0
-        for blue_contour in blue_contours:
-            if cv.contourArea(blue_contour) > blue_max:
-                blue_max = cv.contourArea(blue_contour)
         
-        
-        priority_mode = 0
-
-        if rc.controller.was_pressed(rc.controller.Button.A):
-            priority_mode = 1
-        if rc.controller.was_pressed(rc.controller.Button.B):
-            priority_mode = 2
-        if rc.controller.was_pressed(rc.controller.Button.X):
-            priority_mode = 3
-        
-        
-        prio = []
-        # 1 - red>green>blue
-        # 2 -  red > blue > green
-        # 3 -  green > red > blue
+        order = []
+        if priority_mode == 0:
+            order = [blue_contours,green_contours,red_contours]
+            print ("Priority: blue > green > red")
         if priority_mode == 1:
-            prio = [[red_contours,red_max],[green_contours,green_max],[blue_contours,blue_max]]
-        if priority_mode ==2:
-            prio = [[red_contours,red_max],[blue_contours,blue_max],[green_contours,green_max]]
-        if priority_mode ==3:
-            prio = [[green_contours,green_max],[red_contours,red_max],[blue_contours,blue_max]]
-        print(prio)
-
-        if len(prio[0][0]) > 0 and prio[0][1] > MIN_CONTOUR_AREA:
-            contours = prio[0][0]
-        elif len(prio[1][0]) > 0 and prio[1][1] > MIN_CONTOUR_AREA:
-            contours = prio[1][0]
-        else:
-            contours = prio[2][0]
-                
+            order = [blue_contours,red_contours,green_contours]
+            print ("Priority: blue > red > green")
+        if priority_mode == 2:
+            order = [green_contours,red_contours,blue_contours] 
+            print ("Priority: green > red > blue")
+        if priority_mode == 3:
+            order = [green_contours,blue_contours,red_contours] 
+            print ("Priority: green > blue > red")
+        
+        for contours_color in order:
+            if contours_color is not None:
+                contour = rc_utils.get_largest_contour(contours_color, MIN_CONTOUR_AREA)
+                if contour is None: continue
+                break
+        
         # Select the largest contour
-        contour = rc_utils.get_largest_contour(contours, MIN_CONTOUR_AREA)
+
 
         if contour is not None:
             # Calculate contour information
@@ -169,6 +142,7 @@ def start():
         "    A button = print current speed and angle\n"
         "    B button = print contour center and area"
     )
+
 def remap(val,old_min,old_max,new_min,new_max):
     len1 = abs(old_max - old_min)
     len2 = abs(new_max - new_min)
@@ -180,6 +154,7 @@ def remap(val,old_min,old_max,new_min,new_max):
         return new_min - scale_shift
 
 def update():
+    global priority_mode
 
     """
     After start() is run, this function is run every frame until the back button
@@ -187,7 +162,14 @@ def update():
     """
     global speed
     global angle
-
+    if rc.controller.was_pressed(rc.controller.Button.A):
+        priority_mode = 0
+    if rc.controller.was_pressed(rc.controller.Button.B):
+        priority_mode = 1
+    if rc.controller.was_pressed(rc.controller.Button.X):
+        priority_mode = 2
+    if rc.controller.was_pressed(rc.controller.Button.Y):
+        priority_mode = 3
     # Search for contours in the current color image
     update_contour()
 
