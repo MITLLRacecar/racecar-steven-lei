@@ -41,12 +41,11 @@ BLUE = ((100, 175, 200), (130, 255, 255))  # The HSV range for the color blue
 RED  = ((170, 50, 50),(179, 255, 255))
 
 ##Contour stuff
-MIN_CONTOUR_AREA = 300
+MIN_CONTOUR_AREA = 200
 contour_red_center = 0.0
 contour_red_area = 0
 contour_blue_center = 0.0
 contour_blue_area = 0
-color = True
 
 # Distance to look beside center of cone
 OFFSET_DIST = 75
@@ -78,36 +77,27 @@ def update_red_contour():
     image = rc.camera.get_color_image()
 
     if image is None:
-        contour_center = None
-        contour_area = 0
+        contour_red_center = None
+        contour_red_area = 0
     else:
         # Find all blue and red contours
         contours_red = rc_utils.find_contours(image, RED[0], RED[1])
 
         # Select the largest contour of each color
         contour_red = rc_utils.get_largest_contour(contours_red, MIN_CONTOUR_AREA)
-        
-        #Find the contour area of each color
-        red_area = rc_utils.get_contour_area(contour_red) if contour_red is not None else 0.0
-
+    
         contour = contour_red
-
+        
         if contour is not None:
             # Calculate contour information
             contour_red_center = rc_utils.get_contour_center(contour)
-            contour_red_area = rc_utils.get_contour_area(contour)
-
-            # Draw contour onto the image
-            rc_utils.draw_contour(image, contour)
-            rc_utils.draw_circle(image, contour_red_center)            
-            # rc_utils.draw_circle(image, [contour_center[0], contour_center[1] + OFFSET_DIST])
+            contour_red_area = rc_utils.get_contour_area(contour)        
         else:
             contour_red_center = None
             contour_red_area = 0
 
         return contour
-        # Display the image to the screen
-        #rc.display.show_color_image(image)
+        
 
 def update_blue_contour():
     """
@@ -121,8 +111,8 @@ def update_blue_contour():
     image = rc.camera.get_color_image()
 
     if image is None:
-        contour_center = None
-        contour_area = 0
+        contour_blue_center = None
+        contour_blue_area = 0
     else:
         # Find all blue and red contours
         contours_blue = rc_utils.find_contours(image, BLUE[0], BLUE[1])
@@ -131,7 +121,6 @@ def update_blue_contour():
         contour_blue = rc_utils.get_largest_contour(contours_blue, MIN_CONTOUR_AREA)
         
         #Find the contour area of each color
-        blue_area = rc_utils.get_contour_area(contour_blue) if contour_blue is not None else 0.0
 
         contour = contour_blue
 
@@ -140,18 +129,12 @@ def update_blue_contour():
             contour_blue_center = rc_utils.get_contour_center(contour)
             contour_blue_area = rc_utils.get_contour_area(contour)
 
-            # Draw contour onto the image
-            rc_utils.draw_contour(image, contour)
-            rc_utils.draw_circle(image, contour_blue_center)            
-            # rc_utils.draw_circle(image, [contour_center[0], contour_center[1] + OFFSET_DIST])
-
         else:
             contour_blue_center = None
             contour_blue_area = 0
 
         return contour
-        # Display the image to the screen
-        #rc.display.show_color_image(image)
+
 
 def get_mask(image, hsv_lower, hsv_upper):
     """   
@@ -187,67 +170,83 @@ def update():
     global contour_blue_center
     global contour_red_area
     global contour_blue_area
-    global color
     global OFFSET_DIST
     global curr_state
-    
+
     red_contour = update_red_contour()
     blue_contour = update_blue_contour()
     
     image = rc.camera.get_color_image()
+    depth_image_original = rc.camera.get_depth_image()
+    
+    # closest_point = None
+    # mask = None
+    # if curr_state == State.search:
+    #     if red_contour is not None and blue_contour is not None :
+    #         curr_state = State.approach_red if contour_red_area > contour_blue_area else State.approach_blue
+    #     elif red_contour is not None:
+    #         curr_state = State.approach_red
+    #     elif blue_contour is not None:
+    #         curr_state = State.approach_blue
+    #     angle = 0.5
+    #     speed = 0.5
+    # elif curr_state == State.approach_red:
+    #     if red_contour is None:
+    #         curr_state = State.search
+    #     mask = get_mask(image, RED[0], RED[1])
+    #     closest_point = contour_red_center
 
+    # elif curr_state == State.approach_blue:
+    #     if blue_contour is None:
+    #         curr_state = State.search
+    #     mask = get_mask(image, BLUE[0], BLUE[1]) 
+    #     closest_point = contour_blue_center
+    red_depth = 0.0
+    blue_depth = 0.0
     if curr_state == State.search:
-        if red_contour and blue_contour:
-            curr_state = State.approach_red if contour_red_area > contour_blue_area else State.approach_blue
-        elif red_contour:
+        if red_contour is not None and blue_contour is not None:
+            red_depth = depth_image_original[contour_red_center[0]][contour_red_center[1]]
+            blue_depth = depth_image_original[contour_blue_center[0]][contour_blue_center[1]]
+            if red_depth < blue_depth:
+                curr_state = State.approach_red
+            elif blue_depth < red_depth:
+                curr_state = State.approach_blue
+            
+        elif red_contour is not None:
             curr_state = State.approach_red
-        elif blue_contour:
+        elif blue_contour is not None:
             curr_state = State.approach_blue
-        angle = 0.5
-        speed = 0.5
-    elif curr_state == State.approach_red:
-        mask = get_mask(image, RED[0], RED[1])
-        closest_point = contour_red_center
-    elif curr_state == State.approach_blue:
-        mask = get_mask(image, BLUE[0], BLUE[1]) 
-        closest_point = contour_blue_center
-
+        else:
+            speed = 0.5
+            angle = 0.5
     
-    
-    # mask = get_mask(image, RED[0], RED[1]) if color else get_mask(image, BLUE[0], BLUE[1])
-    # masked_image = cv.bitwise_and(image, image, mask=mask)
-    
-    depth_image = rc.camera.get_depth_image() * mask
-    closest_distance = depth_image[closest_point[0]][closest_point[1]]  / 255
-    
-    rc_utils.draw_circle(depth_image, closest_point)            
-    
-    # rc.display.show_color_image(rc_utils.colormap_depth_image(depth_image / 255, 1000))
-
-    if closest_distance < 30:
-        OFFSET_DIST = 150
-    else:
-        OFFSET_DIST = 75
-    
+    OFFSET_DIST = 90
     if curr_state == State.approach_red:
-        angle = rc_utils.remap_range(contour_red_center[1] + OFFSET_DIST, 0, 640, -0.25, 1, True)
-
-    elif curr_state == State.approach_blue:
-        angle = rc_utils.remap_range(contour_blue_center[1] + OFFSET_DIST, 0, 640, -1, 0.25, True)
-    
-    speed = 0.25
-    
-    
+        if red_contour is None:
+            curr_state = State.search
+        else:
+            red_depth = depth_image_original[contour_red_center[0]][contour_red_center[1]]
+            angle = rc_utils.remap_range(contour_red_center[1] + OFFSET_DIST, 0, 640, -0.35, 1, True)
+            rc_utils.draw_circle(image, [contour_red_center[0] , contour_red_center[1] + OFFSET_DIST])            
+ 
+    if curr_state == State.approach_blue:
+        if blue_contour is None:
+            curr_state = State.search
+        else:
+            blue_depth = depth_image_original[contour_blue_center[0]][contour_blue_center[1]]
+            angle = rc_utils.remap_range(contour_blue_center[1] - OFFSET_DIST, 0, 640, -1, 0.35, True)
+            rc_utils.draw_circle(image, [contour_blue_center[0] , contour_blue_center[1] - OFFSET_DIST])   
+   
+    speed = 0.5  
     
     rc.drive.set_speed_angle(speed, angle)
+    rc.display.show_color_image(image)    
 
     #Debug
     if rc.controller.is_down(rc.controller.Button.A):
-        print(f"State:{color} Speed{speed:.2f} Angle: {angle} Area:{}")
+        print(f"State:{curr_state} Speed{speed:.2f} Angle: {angle}")
     if rc.controller.is_down(rc.controller.Button.B):
-        # print(f"Closest point distance:{depth_image[closest_point[0]][closest_point[1]]} ")
-        print(f" ")
-
+        print(f"Red depth:{red_depth} Blue depth:{blue_depth} Red area: {contour_red_area} Blue area: {contour_blue_area}")
 
 
 ########################################################################################
