@@ -26,6 +26,7 @@ class State(IntEnum):
     turn_red = 3
     turn_blue = 4
     stop = 5
+    
 
 ########################################################################################
 # Global variables
@@ -37,22 +38,24 @@ curr_state: State = State.search
 
 speed = 0.0
 angle = 0.0
+counter = 0.0
 
 #HSV Values
-BLUE = ((100, 175, 200), (130, 255, 255))  # The HSV range for the color blue
+BLUE = ((100, 150, 150), (130, 255, 255))  # The HSV range for the color blue
 RED  = ((165, 0, 0),(179, 255, 255)) 
 ##Contour stuff
-MIN_CONTOUR_AREA = 300
-contour_red_center = 0.0
-contour_red_area = 0
-contour_blue_center = 0.0
-contour_blue_area = 0
-# Distance to look beside center of cone
-OFFSET_DIST = 75
+MIN_CONTOUR_AREA = 800
+
+#Distance threshold before turning
+DIST = 80
 # Cone recovery
 RECOVER_BLUE = False
 RECOVER_RED = False
-
+#Speed constants
+APPROACH_SPEED = 0.75
+TURN_SPEED = 0.65
+#Angle constants
+RECOVER_ANGLE = 0.95
 ########################################################################################
 # Functions
 ########################################################################################
@@ -67,96 +70,14 @@ def start():
     # Print start message
     print(">> Phase 1 Challenge: Cone Slaloming")
 
-def update_red_contour():
-    """
-    Finds contours in the current color image and uses them to update contour_center
-    and contour_area
-    """
-    global contour_red_center
-    global contour_red_area
-    global RED
-
+def get_contour(HSV, MIN_CONTOUR_AREA = 30):
     image = rc.camera.get_color_image()
-
     if image is None:
-        contour_red_center = None
-        contour_red_area = 0
+        return None
     else:
-        # Find all blue and red contours
-        contours_red = rc_utils.find_contours(image, RED[0], RED[1])
-
-        # Select the largest contour of each color
-        contour_red = rc_utils.get_largest_contour(contours_red, MIN_CONTOUR_AREA)
-    
-        contour = contour_red
-        
-        if contour is not None:
-            # Calculate contour information
-            contour_red_center = rc_utils.get_contour_center(contour)
-            contour_red_area = rc_utils.get_contour_area(contour)        
-        else:
-            contour_red_center = None
-            contour_red_area = 0
+        contours = rc_utils.find_contours(image, HSV[0], HSV[1])
+        contour = rc_utils.get_largest_contour(contours, MIN_CONTOUR_AREA)
         return contour
-        
-
-def update_blue_contour():
-    """
-    Finds contours in the current color image and uses them to update contour_center
-    and contour_area
-    """
-    global contour_blue_center
-    global contour_blue_area
-    global BLUE
-
-    image = rc.camera.get_color_image()
-
-    if image is None:
-        contour_blue_center = None
-        contour_blue_area = 0
-    else:
-        # Find all blue and red contours
-        contours_blue = rc_utils.find_contours(image, BLUE[0], BLUE[1])
-
-        # Select the largest contour of each color
-        contour_blue = rc_utils.get_largest_contour(contours_blue, MIN_CONTOUR_AREA)
-        
-        #Find the contour area of each color
-
-        contour = contour_blue
-
-        if contour is not None:
-            # Calculate contour information
-            contour_blue_center = rc_utils.get_contour_center(contour)
-            contour_blue_area = rc_utils.get_contour_area(contour)
-
-        else:
-            contour_blue_center = None
-            contour_blue_area = 0
-
-        return contour
-
-
-def get_mask(image, hsv_lower, hsv_upper):
-    """   
-    Returns a mask containing all of the areas of image which were between hsv_lower and hsv_upper.
-    
-    Args:
-        image: The image (stored in BGR) from which to create a mask.
-        hsv_lower: The lower bound of HSV values to include in the mask.
-        hsv_upper: The upper bound of HSV values to include in the mask.
-    """
-    # Convert hsv_lower and hsv_upper to numpy arrays so they can be used by OpenCV
-    hsv_lower = np.array(hsv_lower)
-    hsv_upper = np.array(hsv_upper)
-    
-    # TODO: Use the cv.cvtColor function to switch our BGR colors to HSV colors
-    img_hsv = cv.cvtColor(image, cv.COLOR_BGR2HSV)
-    
-    # TODO: Use the cv.inRange function to highlight areas in the correct range
-    mask = cv.inRange(img_hsv, hsv_lower, hsv_upper)
-    
-    return mask
 
 def update():
     """
@@ -165,81 +86,84 @@ def update():
     """
     # TODO: Slalom between red and blue cones.  The car should pass to the right of
     # each red cone and the left of each blue cone.
-    global angle
-    global speed
-    global contour_red_center, contour_blue_center
-    global contour_red_area, contour_blue_area
-    global OFFSET_DIST
-    global curr_state
-    global RECOVER_BLUE, RECOVER_RED
-    
-    red_contour = update_red_contour()
-    blue_contour = update_blue_contour()
-    
+    global angle, speed, RECOVER_BLUE, RECOVER_RED
+    global curr_state, counter
+    global DIST, RED, BLUE, MIN_CONTOUR_AREA
+
     image = rc.camera.get_color_image()
     depth_image_original = rc.camera.get_depth_image()
+   
+    red_contour = get_contour(RED, MIN_CONTOUR_AREA)
+    blue_contour = get_contour(BLUE, MIN_CONTOUR_AREA)
     
-  
-    red_depth = depth_image_original[contour_red_center[0]][contour_red_center[1]] if red_contour is not None else 0.0
-    blue_depth = depth_image_original[contour_blue_center[0]][contour_blue_center[1]] if blue_contour is not None else 0.0
+    red_center = rc_utils.get_contour_center(red_contour) if red_contour is not None else None
+    blue_center = rc_utils.get_contour_center(blue_contour) if blue_contour is not None else None
+    
+    red_depth = depth_image_original[red_center[0]][red_center[1]] if red_contour is not None else 0.0
+    blue_depth = depth_image_original[blue_center[0]][blue_center[1]] if blue_contour is not None else 0.0
     
     # we want to identify the closest object
-
-    if curr_state == State.search:
-        # only approach the red cone iff it exists and it is closer
-        if (red_depth < blue_depth or blue_depth == 0) and red_depth!=0 :
-            curr_state = State.approach_red
-        #approach the blue cone iff it exists and its closer
-        elif (blue_depth < red_depth or red_depth == 0) and blue_depth !=0:
-            curr_state = State.approach_blue
-        
-        # else we drive and search
-        elif RECOVER_RED:
-            angle = -1
-            speed = 1
-        elif RECOVER_BLUE:
-            angle = 1
-            speed = 1
-        else:
-            speed = 0.5
-            
     
-    OFFSET_DIST = 30
-    v_const = 60
-
-    if curr_state == State.approach_red:
-        # swap to blue iff it exists and is closer
-        if blue_depth < red_depth and blue_depth!=0:
-            curr_state = State.approach_blue
-
-        #go back to search if its gone
-        elif red_depth == 0:
-            curr_state = State.search
-        else:
-            # OFFSET_DIST = int(mt.sqrt(abs(v_const**2 + red_depth**2 - 2*v_const * red_depth  * v_const / red_depth)))
-            # angle = rc_utils.remap_range(contour_red_center[1] + OFFSET_DIST, 0, 640, -0.35, 1, True) 
-            angle = rc_utils.remap_range(red_depth, 150, 0, 0, 1, True)
-
-            rc_utils.draw_contour(image, red_contour)
-            rc_utils.draw_circle(image, [contour_red_center[0] , contour_red_center[1]])    
-            RECOVER_RED = True        
- 
-    if curr_state == State.approach_blue:
-        if RECOVER_RED: RECOVER_RED = False
+    if curr_state == State.search:
+        if RECOVER_RED: 
+            angle = -RECOVER_ANGLE
+        if RECOVER_BLUE:
+            angle = RECOVER_ANGLE
         if red_depth < blue_depth and red_depth!=0:
             curr_state = State.approach_red
-        
-        elif blue_depth == 0:
+        if blue_depth < red_depth and blue_depth!=0:
+            curr_state  = State.approach_blue
+        elif red_depth != 0:
+            curr_state = State.approach_red
+        elif blue_depth !=0:
+            curr_state = State.approach_blue
+
+    if curr_state == State.approach_red:
+        if RECOVER_BLUE: RECOVER_BLUE = False
+        if red_depth == 0.0: 
             curr_state = State.search
+        elif red_depth < DIST: 
+            curr_state = State.turn_red  
         else:
-            # OFFSET_DIST = int(mt.sqrt(abs(v_const**2 + red_depth**2 - 2*v_const * red_depth  * v_const / red_depth)))
-            # angle = rc_utils.remap_range(contour_blue_center[1] - OFFSET_DIST, 0, 640, -1, 0.35, True)
-            angle = rc_utils.remap_range(blue_depth, 150, 0, 0, -1, True)
-            rc_utils.draw_contour(image, blue_contour)
-            rc_utils.draw_circle(image, [contour_blue_center[0] , contour_blue_center[1]])
-            RECOVER_BLUE = True   
-   
-    speed = 0.5
+            rc_utils.draw_circle(image,red_center)
+            angle = rc_utils.remap_range(red_center[1], 0, rc.camera.get_width(), -1,1, True) 
+    
+    if curr_state == State.approach_blue:
+        if RECOVER_RED: RECOVER_RED = False
+        if blue_depth == 0.0: 
+            curr_state = State.search
+        elif blue_depth < DIST: 
+            curr_state = State.turn_blue
+        else:
+            rc_utils.draw_circle(image, blue_center)
+            angle = rc_utils.remap_range(blue_center[1], 0, rc.camera.get_width(), -1,1,True) 
+    
+    if curr_state == State.turn_red:
+        counter += rc.get_delta_time()
+        if counter < 0.85:
+            angle = 1
+        elif counter < 1: 
+            angle = 0
+        else:
+            counter = 0
+            RECOVER_RED = True
+            curr_state = State.search
+
+    if curr_state == State.turn_blue:
+        counter += rc.get_delta_time()
+        if counter < 0.85:
+            angle = -1
+        elif counter < 1: 
+            angle = 0
+        else:
+            counter = 0
+            RECOVER_BLUE = True
+            curr_state = State.search
+    
+    if curr_state == (State.approach_blue or State.approach_red or State.search):
+        speed = APPROACH_SPEED
+    else:
+        speed = TURN_SPEED
     
     rc.drive.set_speed_angle(speed, angle)
     rc.display.show_color_image(image)
@@ -248,12 +172,8 @@ def update():
     ###############Debug###################
     #######################################
 
-    if rc.controller.is_down(rc.controller.Button.A):
-        print(f"State:{curr_state} Speed{speed:.2f} Angle: {angle:.2f}")
-        print(f"Red depth:{red_depth:.2F} Blue depth:{blue_depth:.2F} Red area: {contour_red_area:.2f} Blue area: {contour_blue_area:.2f}")
-
-    if rc.controller.is_down(rc.controller.Button.B):
-        print(f"Red depth:{red_depth:.2F} Blue depth:{blue_depth:.2F} Red area: {contour_red_area:.2f} Blue area: {contour_blue_area:.2f}")
+    print(f"S:{curr_state} V{speed:.2f} Angle: {angle:.2f} Rec R:{RECOVER_RED} Rec B:{RECOVER_BLUE}")
+    print(f"Red depth:{red_depth:.2F} Blue depth:{blue_depth:.2F}")
 
 ########################################################################################
 # DO NOT MODIFY: Register start and update and begin execution
