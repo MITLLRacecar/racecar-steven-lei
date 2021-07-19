@@ -52,10 +52,11 @@ DIST = 80
 RECOVER_BLUE = False
 RECOVER_RED = False
 #Speed constants
-APPROACH_SPEED = 0.75
+APPROACH_SPEED = 1
 TURN_SPEED = 0.65
 #Angle constants
 RECOVER_ANGLE = 0.95
+TURN_ANGLE =  1
 ########################################################################################
 # Functions
 ########################################################################################
@@ -91,8 +92,9 @@ def update():
     global DIST, RED, BLUE, MIN_CONTOUR_AREA
 
     image = rc.camera.get_color_image()
-    depth_image_original = rc.camera.get_depth_image()
-   
+    depth_image_original = (rc.camera.get_depth_image() - 0.01) % 10000
+    depth_image_original= cv.GaussianBlur(depth_image_original,(3,3),0)
+    
     red_contour = get_contour(RED, MIN_CONTOUR_AREA)
     blue_contour = get_contour(BLUE, MIN_CONTOUR_AREA)
     
@@ -141,7 +143,7 @@ def update():
     if curr_state == State.turn_red:
         counter += rc.get_delta_time()
         if counter < 0.85:
-            angle = 1
+            angle = TURN_ANGLE
         elif counter < 1: 
             angle = 0
         else:
@@ -152,7 +154,7 @@ def update():
     if curr_state == State.turn_blue:
         counter += rc.get_delta_time()
         if counter < 0.85:
-            angle = -1
+            angle = -TURN_ANGLE
         elif counter < 1: 
             angle = 0
         else:
