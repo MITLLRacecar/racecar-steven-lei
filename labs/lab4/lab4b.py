@@ -60,23 +60,24 @@ def update():
     window_length = 180
     window_start = -90
     farthest = [0, 0]
-    windows = [[window_start +  w *window_length//sectors, window_start +  (w+1) *window_length//sectors] for w in range(sectors)]
+    windows = [[window_start +  w *window_length//sectors, window_start +  (w+1) *window_length//sectors-1] for w in range(sectors)]
     
     for window in windows:
         temp = rc_utils.get_lidar_closest_point(scan, window)
-        if temp[1] > farthest [1]:
+        if round(temp[1],2) > round(farthest [1],2):
             farthest = temp
+
 
     for window in windows:
         temp = farthest[0]
         temp = temp - 360 if temp > 270 else temp
+        print(temp)
         if temp in range(window[0],window[1]):
             angle = (window[0] + window[1]) / 2
-            print(temp, angle)
-    
-    angle = rc_utils.remap_range(angle, window_start, window_start+window_length, -1, 1, True) 
-    angle = rc_utils.clamp(angle*2,-1,1)
-    speed = 0.45
+                # print(temp, angle)
+    angle = rc_utils.remap_range(angle, window_start, window_start+window_length, -1, 1, True) * 2
+    angle = rc_utils.clamp(angle,-1,1)
+    speed = 0
     
     rc.drive.set_speed_angle(speed, angle)
 
