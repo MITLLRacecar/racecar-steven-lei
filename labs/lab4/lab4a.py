@@ -27,7 +27,8 @@ rc = racecar_core.create_racecar()
 # The (min, max) degrees to consider when measuring forward and rear distances
 FRONT_WINDOW = (-10, 10)
 REAR_WINDOW = (170, 190)
-
+FRONT_STOP = False
+BACK_STOP = False
 ########################################################################################
 # Functions
 ########################################################################################
@@ -56,15 +57,16 @@ def start():
 
 
 def update():
+    global FRONT_STOP
+    global BACK_STOP
     """
     After start() is run, this function is run every frame until the back button
     is pressed
     """
-
     # Use the triggers to control the car's speed
     rt = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
     lt = rc.controller.get_trigger(rc.controller.Trigger.LEFT)
-    speed = rt - lt
+    input_speed = rt - lt
     # Calculate the distance in front of and behind the car
     scan = rc.lidar.get_samples()
     _, forward_dist = rc_utils.get_lidar_closest_point(scan, FRONT_WINDOW)
@@ -72,12 +74,31 @@ def update():
 
     # TODO (warmup): Prevent the car from hitting things in front or behind it.
     # Allow the user to override safety stop by holding the left or right bumper.
-    
+    speed = 0
 
-    if speed < 0 and back_dist < 250: speed = speed * rc_utils.remap_range(back_dist, 300, 0, -1,0, True)
-    if speed > 0 and forward_dist < 250: speed = speed * rc_utils.remap_range(forward_dist, 300, 0, 1,0, True)
-    if forward_dist < 100 or back_dist < 100: speed = 0
-    if rc.controller.is_down(rc.controller.Button.RB) or rc.controller.is_down(rc.controller.Button.LB): speed = rt-lt
+    FRONT_STOP = True if forward_dist < 100 else False
+    BACK_STOP = True if back_dist < 100 else False
+
+
+    if rc.controller.is_down(rc.controller.Button.RB) or rc.controller.is_down(rc.controller.Button.LB): 
+        FRONT_STOP = False
+        BACK_STOP = False
+        speed = input_speed
+    else:
+        if input_speed > 0 and not FRONT_STOP and forward_dist < 250:
+            speed = rc_utils.remap_range(forward_dist, 350, 0, 1,0, True)
+            print("Front:", speed)
+        elif input_speed < 0 and not BACK_STOP and back_dist < 250:
+            speed = rc_utils.remap_range(back_dist, 350, 0, -1,0, True)
+            print("BACK:", speed)
+        elif input_speed > 0:
+            speed = input_speed if not FRONT_STOP else  0
+        elif  input_speed < 0:
+            speed = input_speed if not BACK_STOP else 0
+
+
+
+
 
 
     # Use the left joystick to control the angle of the front wheels
