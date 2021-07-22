@@ -73,7 +73,7 @@ def update():
     
 
     angle = (windows[sector_index][0] + windows[sector_index][1]) / 2
-    angle = rc_utils.remap_range(angle, window_start, window_start+window_length, -1, 1, True) 
+    angle = rc_utils.remap_range(angle, window_start, window_start+window_length, -1, 1, True) *2
     angle = rc_utils.clamp(angle,-1,1)
     
     speed = 0.85
