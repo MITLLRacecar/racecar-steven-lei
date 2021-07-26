@@ -59,7 +59,6 @@ def update():
     sectors = 10
     window_length = 180
     window_start = -90
-    farthest = [0, 0]
     windows = [[window_start +  w *window_length//sectors, window_start + (w+1) *window_length//sectors-1] for w in range(sectors)]
     
     sector_index = 0
