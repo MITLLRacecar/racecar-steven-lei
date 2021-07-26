@@ -5,13 +5,7 @@ Steven Lei BWSI Racecar 20-21 Virtual
 
 **Special thanks to the instructors**
 
-Alina Saratova
-Kourush Arasteh
-
-Julia Hsing
-Dylan Camacho
-Nic Tekieli
-Alec Candidato
+Alina Saratova, Kourush Arasteh, Julia Hsing, Dylan Camacho, Nic Tekieli, & Alec Candidato
 
 
 **Special thanks to these partners:**
@@ -21,3 +15,5 @@ Arpan Kumar (Lab 1, 2, P1 Challenge)
 Dhaval Tantray (Lab 3)
 
 Daniel Chuang (Lab 4)
+
+Alexander Jiang, Stephen Snekvik, & Austin Huang (Lab 5)
