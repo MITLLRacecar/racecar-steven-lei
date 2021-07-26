@@ -4,6 +4,7 @@ This repository is designed for individuals using the MITLL RACECAR-MN, an educa
 Steven Lei BWSI Racecar 20-21 Virtual
 
 **Special thanks to the instructors**
+
 Alina Saratova
 Kourush Arasteh
 
