@@ -108,28 +108,45 @@ def line_follower(color):
         return 0
 
     # Display the image to the screen
-    rc.display.show_color_image(image)
+    # rc.display.show_color_image(image)
     
     angle = rc_utils.remap_range(contour_center[1],0,rc.camera.get_width(),-1,1, True)
     return angle
 
-def wall_follower(window_start, window_length, sectors):
-    scan = rc.lidar.get_samples()
-    windows = [[window_start +  w *window_length//sectors, window_start + (w+1) *window_length//sectors-1] for w in range(sectors)]
-
-    sector_index = 0
-    sector_distance = 0
-    
-    for i in range(len(windows)):
-        temp = rc_utils.get_lidar_closest_point(scan, windows[i])[1]
-        if temp > sector_distance:
-            sector_index = i
-            sector_distance = temp
+def wall_follower(scan, right):
+    FRONT_WINDOW = (-10, 10)
+    FRONT_RIGHT_WINDOW = (25, 35)
+    FRONT_LEFT_WINDOW = (325, 335)
+    RIGHT_WINDOW = (65, 70)
+    LEFT_WINDOW = (285, 290)
+    _, fr_dist = rc_utils.get_lidar_closest_point(scan, FRONT_RIGHT_WINDOW)
+    _, fl_dist = rc_utils.get_lidar_closest_point(scan, FRONT_LEFT_WINDOW)
+    _, r_dist = rc_utils.get_lidar_closest_point(scan, RIGHT_WINDOW)
+    _, l_dist = rc_utils.get_lidar_closest_point(scan, LEFT_WINDOW)
     
 
-    angle = (windows[sector_index][0] + windows[sector_index][1]) / 2
-    angle = rc_utils.remap_range(angle, window_start, window_start+window_length, -1, 1, True) *2
-    angle = rc_utils.clamp(angle,-1,1)
+    if right: 
+        if fr_dist > 80:
+            angle = 0.45
+            if r_dist > 70:
+                angle = -1
+        elif fl_dist > 80:
+            angle = -0.5
+            if l_dist > 70:
+                angle = 1
+        else:
+            angle = 0
+    else:
+        if fl_dist > 80:
+            angle = -0.5
+            if l_dist > 70:
+                angle = 1
+        elif fr_dist > 80:
+            angle = 0.45
+            if r_dist > 70:
+                angle = -1
+        else:
+            angle = 0
 
     return angle
 
@@ -179,20 +196,17 @@ def update():
                 curr_state = State.line_follow_green
     # TODO: Turn left if we see a marker with ID 0 and right for ID 1
     
+    scan = rc.lidar.get_samples()
     if curr_state == State.wall_follow_left:
-        angle = wall_follower(-90, 180,8)
-        print(angle)
-        angle = rc_utils.clamp(angle,-1,0)
+        angle = wall_follower(scan, False)
     elif curr_state == State.wall_follow_right:
-        angle = wall_follower(-90,180,8)
-        print(angle)
-        angle = rc_utils.clamp(angle, 0,1)
+        angle = wall_follower(scan, True)
     elif curr_state == State.line_follow_blue: 
         angle = line_follower("blue")
     elif curr_state == State.line_follow_red:
         angle = line_follower("red")
         
-
+    print(angle)
     # TODO: If we see a marker with ID 199, turn left if the marker faces left and right
     # if the marker faces right
 
