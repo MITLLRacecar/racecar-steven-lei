@@ -222,7 +222,7 @@ def update():
     
     print(curr_state)
 
-    speed = 1
+    speed = 0.85
 
     rc.drive.set_speed_angle(speed, angle)
 
